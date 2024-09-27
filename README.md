@@ -1,2 +1,2 @@
-# MLbootcampNA
-NittanyAImlbootcamp
+# MLbootcamp
+NittanyAI ML Bootcamp
