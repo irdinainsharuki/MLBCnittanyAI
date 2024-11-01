@@ -1,0 +1,282 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/irdinainsharuki/MLBCnittanyAI/blob/main/FineTuning\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Loading data"
+      ],
+      "metadata": {
+        "id": "0D85rnQ1V6jW"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Import necessary libraries\n",
+        "import tensorflow as tf\n",
+        "from tensorflow.keras.applications import ResNet50\n",
+        "from tensorflow.keras.layers import Dense, Flatten\n",
+        "from tensorflow.keras.models import Model\n",
+        "from tensorflow.keras.preprocessing.image import ImageDataGenerator\n",
+        "import pandas as pd\n",
+        "import numpy as np"
+      ],
+      "metadata": {
+        "id": "soT6DgX67jai"
+      },
+      "execution_count": 4,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 5,
+      "metadata": {
+        "id": "uc2GYRZzKyzh",
+        "outputId": "63fad5f6-6592-498c-a5db-a88025e86acf",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "collapsed": true
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "--2024-11-01 18:49:30--  https://storage.googleapis.com/mledu-datasets/cats_and_dogs_filtered.zip\n",
+            "Resolving storage.googleapis.com (storage.googleapis.com)... 173.194.216.207, 173.194.217.207, 108.177.11.207, ...\n",
+            "Connecting to storage.googleapis.com (storage.googleapis.com)|173.194.216.207|:443... connected.\n",
+            "HTTP request sent, awaiting response... 200 OK\n",
+            "Length: 68606236 (65M) [application/zip]\n",
+            "Saving to: ‘/tmp/cats_and_dogs_filtered.zip’\n",
+            "\n",
+            "/tmp/cats_and_dogs_ 100%[===================>]  65.43M   169MB/s    in 0.4s    \n",
+            "\n",
+            "2024-11-01 18:49:31 (169 MB/s) - ‘/tmp/cats_and_dogs_filtered.zip’ saved [68606236/68606236]\n",
+            "\n"
+          ]
+        }
+      ],
+      "source": [
+        "!wget --no-check-certificate \\\n",
+        "    https://storage.googleapis.com/mledu-datasets/cats_and_dogs_filtered.zip \\\n",
+        "    -O /tmp/cats_and_dogs_filtered.zip\n",
+        "\n",
+        "import os\n",
+        "import zipfile\n",
+        "\n",
+        "local_zip = '/tmp/cats_and_dogs_filtered.zip'\n",
+        "zip_ref = zipfile.ZipFile(local_zip, 'r')\n",
+        "zip_ref.extractall('/tmp')\n",
+        "zip_ref.close()\n",
+        "\n",
+        "base_dir = '/tmp/cats_and_dogs_filtered'\n",
+        "train_dir = os.path.join(base_dir, 'train')\n",
+        "validation_dir = os.path.join(base_dir, 'validation')"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Reading the Data into arrays"
+      ],
+      "metadata": {
+        "id": "xgEKdtTjV8Sx"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from PIL import Image\n",
+        "import numpy as np\n",
+        "\n",
+        "\n",
+        "cats_dir = os.path.join(train_dir + \"/cats\")\n",
+        "dogs_dir = os.path.join(train_dir + \"/dogs\")\n",
+        "\n",
+        "x_train = []\n",
+        "y_train = []\n",
+        "NUMBER_OF_EXAMPLES =1000\n",
+        "\n",
+        "i = 0\n",
+        "while i < NUMBER_OF_EXAMPLES:\n",
+        "  if i % 2 == 0:\n",
+        "    im = Image.open(os.path.join(cats_dir, os.listdir(cats_dir)[i])).convert(\"RGB\")\n",
+        "    im_resized = im.resize((128, 128))\n",
+        "\n",
+        "    x_train.append(np.array(im_resized))\n",
+        "    y_train.append(1)\n",
+        "  else:\n",
+        "    im = Image.open(os.path.join(dogs_dir, os.listdir(dogs_dir)[i])).convert(\"RGB\")\n",
+        "\n",
+        "    x_train.append(np.array(im_resized))\n",
+        "    y_train.append(0)\n",
+        "  i += 1\n",
+        "\n",
+        "x_train = np.array(x_train).reshape(-1, 128, 128, 3)\n",
+        "y_train = np.array(y_train)\n",
+        "\n"
+      ],
+      "metadata": {
+        "id": "QOhkfFT1K4o1"
+      },
+      "execution_count": 7,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Beginning to define the model (this is where you come in, I loaded the pretrained model for you)"
+      ],
+      "metadata": {
+        "id": "t7R64c0tV-zh"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import tensorflow as tf\n",
+        "\n",
+        "pretrained_model = tf.keras.applications.ResNet50(\n",
+        "    include_top=False,\n",
+        "    input_shape=(128, 128, 3),\n",
+        "    pooling='avg',\n",
+        "    classes=2,\n",
+        "    weights='imagenet'\n",
+        ")\n",
+        "\n",
+        "# Adding custom layers on top of the pretrained model for binary classification\n",
+        "x = pretrained_model.output\n",
+        "x = tf.keras.layers.Dense(256, activation='relu')(x)\n",
+        "x = tf.keras.layers.Dense(1, activation='sigmoid')(x)\n",
+        "\n",
+        "model = tf.keras.models.Model(inputs=pretrained_model.input, outputs=x)\n",
+        "\n",
+        "# Compile the model\n",
+        "model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])\n",
+        "\n",
+        "# Summary of the model to check the architecture\n",
+        "model.summary()\n",
+        "\n"
+      ],
+      "metadata": {
+        "id": "7zGbGnknK6uG"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Data Augmentation and normalization for training and validation\n",
+        "train_datagen = ImageDataGenerator(rescale=1./255, validation_split=0.2)\n",
+        "\n",
+        "train_generator = train_datagen.flow(\n",
+        "    x_train, y_train,\n",
+        "    batch_size=16,\n",
+        "    subset='training'\n",
+        ")\n",
+        "\n",
+        "validation_generator = train_datagen.flow(\n",
+        "    x_train, y_train,\n",
+        "    batch_size=16,\n",
+        "    subset='validation'\n",
+        ")\n",
+        "\n",
+        "# Training the model\n",
+        "history = model.fit(\n",
+        "    train_generator,\n",
+        "    validation_data=validation_generator,\n",
+        "    epochs=10\n",
+        ")\n",
+        "\n",
+        "predictions = model.predict(x_train[:10])\n",
+        "predicted_classes = [1 if prob > 0.5 else 0 for prob in predictions.flatten()]\n",
+        "print('Sample predictions:', predicted_classes)\n",
+        "\n",
+        "# Evaluate the model's accuracy on training data\n",
+        "loss, accuracy = model.evaluate(x_train, y_train)\n",
+        "print(f'Training accuracy: {accuracy:.2f}')"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "E3QXTFJs3hWd",
+        "outputId": "a7284fb3-3ec9-447d-ceae-a4e2710f27e2"
+      },
+      "execution_count": 9,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Epoch 1/10\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/usr/local/lib/python3.10/dist-packages/keras/src/trainers/data_adapters/py_dataset_adapter.py:121: UserWarning: Your `PyDataset` class should call `super().__init__(**kwargs)` in its constructor. `**kwargs` can include `workers`, `use_multiprocessing`, `max_queue_size`. Do not pass these arguments to `fit()`, as they will be ignored.\n",
+            "  self._warn_if_super_not_called()\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m281s\u001b[0m 5s/step - accuracy: 0.4907 - loss: 1.2148 - val_accuracy: 0.5000 - val_loss: 0.7290\n",
+            "Epoch 2/10\n",
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m265s\u001b[0m 5s/step - accuracy: 0.4556 - loss: 0.7020 - val_accuracy: 0.5000 - val_loss: 0.7475\n",
+            "Epoch 3/10\n",
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m253s\u001b[0m 5s/step - accuracy: 0.4617 - loss: 0.6968 - val_accuracy: 0.5000 - val_loss: 0.6965\n",
+            "Epoch 4/10\n",
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m262s\u001b[0m 5s/step - accuracy: 0.4818 - loss: 0.6944 - val_accuracy: 0.5000 - val_loss: 0.8633\n",
+            "Epoch 5/10\n",
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m260s\u001b[0m 5s/step - accuracy: 0.4951 - loss: 0.6941 - val_accuracy: 0.5000 - val_loss: 0.6931\n",
+            "Epoch 6/10\n",
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m262s\u001b[0m 5s/step - accuracy: 0.4860 - loss: 0.6941 - val_accuracy: 0.5000 - val_loss: 0.6932\n",
+            "Epoch 7/10\n",
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m227s\u001b[0m 5s/step - accuracy: 0.4544 - loss: 0.6937 - val_accuracy: 0.5000 - val_loss: 0.6931\n",
+            "Epoch 8/10\n",
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m227s\u001b[0m 5s/step - accuracy: 0.4811 - loss: 0.6937 - val_accuracy: 0.5000 - val_loss: 0.6931\n",
+            "Epoch 9/10\n",
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m270s\u001b[0m 5s/step - accuracy: 0.4882 - loss: 0.6939 - val_accuracy: 0.5000 - val_loss: 0.6932\n",
+            "Epoch 10/10\n",
+            "\u001b[1m50/50\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m227s\u001b[0m 5s/step - accuracy: 0.4723 - loss: 0.6934 - val_accuracy: 0.5000 - val_loss: 0.6932\n",
+            "\u001b[1m1/1\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m3s\u001b[0m 3s/step\n",
+            "Sample predictions: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]\n",
+            "\u001b[1m32/32\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m59s\u001b[0m 2s/step - accuracy: 0.5000 - loss: 0.6932\n",
+            "Training accuracy: 0.50\n"
+          ]
+        }
+      ]
+    }
+  ]
+}
